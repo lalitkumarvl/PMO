@@ -10,6 +10,7 @@ import types
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 
 ENTERPRISE_THEME = """
@@ -46,11 +47,11 @@ ENTERPRISE_THEME = """
   }
 
   .block-container {
-    max-width: 1440px;
+    max-width: 100%;
     padding-top: 0.95rem;
     padding-bottom: 1.75rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-left: 0.8rem;
+    padding-right: 0.8rem;
   }
 
   h1, h2, h3, h4 {
@@ -74,6 +75,8 @@ ENTERPRISE_THEME = """
     background: linear-gradient(180deg, #10203f 0%, #16335f 100%);
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     overflow-x: hidden;
+    min-width: 276px !important;
+    max-width: 276px !important;
   }
 
   [data-testid="stSidebar"] * {
@@ -193,6 +196,11 @@ ENTERPRISE_THEME = """
     .block-container {
       padding-left: 0.8rem;
       padding-right: 0.8rem;
+    }
+
+    [data-testid="stSidebar"] {
+      min-width: 252px !important;
+      max-width: 252px !important;
     }
   }
 
@@ -547,6 +555,98 @@ def _wire_workspace_overrides() -> None:
     print("[PMO] Workspace routing patch loaded.")
 
 
+def _inject_kanban_breakpoint_bridge() -> None:
+    bridge = """
+    <script>
+    (function () {
+      function ensureStyles(doc) {
+        if (!doc || !doc.head || doc.getElementById('vertexone-kanban-responsive')) return;
+        const style = doc.createElement('style');
+        style.id = 'vertexone-kanban-responsive';
+        style.textContent = `
+          html, body {
+            overflow-x: hidden !important;
+            max-width: 100% !important;
+          }
+          [class*="kanban"][class*="board"],
+          [class*="board"][class*="grid"],
+          [class*="board"][class*="container"],
+          [class*="lane"][class*="grid"],
+          [class*="lane"][class*="container"],
+          [class*="column"][class*="grid"],
+          [class*="columns"],
+          [class*="lanes"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+          }
+          [class*="kanban"][class*="board"],
+          [class*="board"][class*="grid"],
+          [class*="lane"][class*="grid"],
+          [class*="columns"],
+          [class*="lanes"] {
+            display: grid !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            align-items: start !important;
+            gap: 14px !important;
+          }
+          [class*="lane"],
+          [class*="column"] {
+            min-width: 0 !important;
+            width: auto !important;
+            max-width: 100% !important;
+          }
+          [class*="header"],
+          [class*="title"] {
+            word-break: keep-all !important;
+            overflow-wrap: break-word !important;
+            hyphens: none !important;
+          }
+          [class*="card"] {
+            min-width: 0 !important;
+            max-width: 100% !important;
+          }
+          @media (max-width: 1180px) {
+            [class*="kanban"][class*="board"],
+            [class*="board"][class*="grid"],
+            [class*="lane"][class*="grid"],
+            [class*="columns"],
+            [class*="lanes"] {
+              grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+          }
+          @media (max-width: 720px) {
+            [class*="kanban"][class*="board"],
+            [class*="board"][class*="grid"],
+            [class*="lane"][class*="grid"],
+            [class*="columns"],
+            [class*="lanes"] {
+              grid-template-columns: minmax(0, 1fr) !important;
+            }
+          }
+        `;
+        doc.head.appendChild(style);
+      }
+
+      function patchIframes() {
+        const frames = window.parent.document.querySelectorAll('iframe');
+        frames.forEach((frame) => {
+          try {
+            const doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
+            ensureStyles(doc);
+          } catch (err) {
+          }
+        });
+      }
+
+      patchIframes();
+      setInterval(patchIframes, 1200);
+    })();
+    </script>
+    """
+    components.html(bridge, height=0, width=0)
+
+
 def _resolve_app_dir() -> Path:
     here = Path(__file__).resolve().parent
     if (here / "pmo_integrated_system.py").exists():
@@ -567,5 +667,6 @@ _patch_pandas_read_json()
 _patch_fpdf()
 _wire_workspace_overrides()
 st.markdown(ENTERPRISE_THEME, unsafe_allow_html=True)
+_inject_kanban_breakpoint_bridge()
 
 runpy.run_path(str(APP_FILE), run_name="__main__")
