@@ -201,22 +201,6 @@ ENTERPRISE_THEME = """
     display: none;
   }
 
-  .vx-mobile-shell [role="radiogroup"],
-  .vx-mobile-shell [data-baseweb="segment-group"] {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.55rem;
-  }
-
-  .vx-mobile-shell label,
-  .vx-mobile-shell button[data-baseweb="segment"] {
-    min-height: 2.8rem !important;
-    border-radius: 14px !important;
-    background: rgba(255, 255, 255, 0.9) !important;
-    border: 1px solid rgba(36, 87, 214, 0.12) !important;
-    box-shadow: 0 8px 20px rgba(20, 46, 82, 0.06);
-  }
-
   @media (max-width: 1100px) {
     .block-container {
       padding-left: 0.8rem;
@@ -257,32 +241,6 @@ ENTERPRISE_THEME = """
     button[data-baseweb="tab"] {
       width: 100%;
       justify-content: center;
-    }
-
-    [data-testid="stSidebar"] {
-      display: none !important;
-    }
-
-    [data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapseButton"],
-    button[title*="sidebar"],
-    button[aria-label*="sidebar"],
-    [aria-label*="Sidebar"] {
-      display: none !important;
-    }
-
-    .vx-mobile-shell {
-      display: block;
-      margin-bottom: 0.9rem;
-    }
-
-    .vx-mobile-shell p {
-      margin-bottom: 0.45rem !important;
-      color: var(--vx-text-soft);
-      font-size: 0.88rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
     }
 
     [data-testid="stHorizontalBlock"] {
@@ -575,31 +533,44 @@ def _patch_plotly_theme() -> None:
             "paper_bgcolor": "rgba(255,255,255,0)",
             "plot_bgcolor": "rgba(255,255,255,0)",
             "font": {"family": "Inter, Segoe UI, Arial, sans-serif", "color": "#14263f", "size": 13},
-            "title": {"font": {"size": 18, "color": "#14263f"}},
+            "title": {
+                "font": {"size": 18, "color": "#14263f"},
+                "x": 0,
+                "xanchor": "left",
+                "y": 0.98,
+                "yanchor": "top",
+                "pad": {"b": 28},
+                "automargin": True,
+            },
             "colorway": ["#2457d6", "#19a4a1", "#d08a1f", "#1f8f67", "#d84b62", "#6b7a90"],
-            "margin": {"l": 24, "r": 24, "t": 48, "b": 24},
+            "margin": {"l": 24, "r": 24, "t": 92, "b": 44},
             "legend": {
                 "orientation": "h",
                 "yanchor": "bottom",
-                "y": 1.02,
+                "y": 1.08,
                 "xanchor": "left",
                 "x": 0,
                 "bgcolor": "rgba(255,255,255,0.84)",
                 "bordercolor": "rgba(21, 51, 89, 0.10)",
                 "borderwidth": 1,
+                "font": {"size": 11},
+                "itemwidth": 42,
             },
             "xaxis": {
                 "showgrid": True,
                 "gridcolor": "rgba(21, 51, 89, 0.08)",
                 "zeroline": False,
                 "linecolor": "rgba(21, 51, 89, 0.14)",
+                "automargin": True,
             },
             "yaxis": {
                 "showgrid": True,
                 "gridcolor": "rgba(21, 51, 89, 0.08)",
                 "zeroline": False,
                 "linecolor": "rgba(21, 51, 89, 0.14)",
+                "automargin": True,
             },
+            "uniformtext": {"minsize": 10, "mode": "hide"},
         }
         pio.templates["vertexone"] = {
             "layout": base_layout,
@@ -653,45 +624,6 @@ def _wire_workspace_overrides() -> None:
     sys.modules["project_scan_workspace"] = scan_proxy
     sys.modules["roadmap_workspace"] = roadmap_proxy
     print("[PMO] Workspace routing patch loaded.")
-
-
-def _render_mobile_workspace_switcher() -> None:
-    st.markdown('<div class="vx-mobile-shell">', unsafe_allow_html=True)
-    st.caption("Workspace")
-    options = ["🚀 Scan Project", "📅 Create RoadMap", "🧾 Asset Management", "📈 Reports"]
-    selected = None
-
-    segmented_control = getattr(st, "segmented_control", None)
-    if callable(segmented_control):
-        try:
-            selected = segmented_control(
-                "Workspace",
-                options,
-                key="vx_workspace_switcher",
-                selection_mode="single",
-                default=st.session_state.get("_pmo_actual_engine", options[0]),
-                label_visibility="collapsed",
-            )
-        except TypeError:
-            selected = segmented_control(
-                "Workspace",
-                options,
-                key="vx_workspace_switcher",
-                label_visibility="collapsed",
-            )
-    else:
-        selected = st.radio(
-            "Workspace",
-            options,
-            key="vx_workspace_switcher",
-            horizontal=True,
-            index=options.index(st.session_state.get("_pmo_actual_engine", options[0])),
-            label_visibility="collapsed",
-        )
-
-    if selected:
-        st.session_state["_pmo_actual_engine"] = selected
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _inject_kanban_breakpoint_bridge() -> None:
@@ -807,7 +739,6 @@ _patch_fpdf()
 _patch_plotly_theme()
 _wire_workspace_overrides()
 st.markdown(ENTERPRISE_THEME, unsafe_allow_html=True)
-_render_mobile_workspace_switcher()
 _inject_kanban_breakpoint_bridge()
 
 runpy.run_path(str(APP_FILE), run_name="__main__")
