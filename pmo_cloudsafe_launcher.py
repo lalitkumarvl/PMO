@@ -12,6 +12,11 @@ from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
 
+try:
+    import plotly.io as pio
+except Exception:
+    pio = None
+
 
 ENTERPRISE_THEME = """
 <style>
@@ -196,6 +201,22 @@ ENTERPRISE_THEME = """
     display: none;
   }
 
+  .vx-mobile-shell [role="radiogroup"],
+  .vx-mobile-shell [data-baseweb="segment-group"] {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .vx-mobile-shell label,
+  .vx-mobile-shell button[data-baseweb="segment"] {
+    min-height: 2.8rem !important;
+    border-radius: 14px !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    border: 1px solid rgba(36, 87, 214, 0.12) !important;
+    box-shadow: 0 8px 20px rgba(20, 46, 82, 0.06);
+  }
+
   @media (max-width: 1100px) {
     .block-container {
       padding-left: 0.8rem;
@@ -243,13 +264,25 @@ ENTERPRISE_THEME = """
     }
 
     [data-testid="collapsedControl"],
-    [data-testid="stSidebarCollapseButton"] {
+    [data-testid="stSidebarCollapseButton"],
+    button[title*="sidebar"],
+    button[aria-label*="sidebar"],
+    [aria-label*="Sidebar"] {
       display: none !important;
     }
 
     .vx-mobile-shell {
       display: block;
       margin-bottom: 0.9rem;
+    }
+
+    .vx-mobile-shell p {
+      margin-bottom: 0.45rem !important;
+      color: var(--vx-text-soft);
+      font-size: 0.88rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
 
     [data-testid="stHorizontalBlock"] {
@@ -533,6 +566,55 @@ def _patch_streamlit_runtime() -> None:
     print("[PMO] Enterprise responsive theme patch loaded.")
 
 
+def _patch_plotly_theme() -> None:
+    if pio is None:
+        return
+
+    if "vertexone" not in pio.templates:
+        base_layout = {
+            "paper_bgcolor": "rgba(255,255,255,0)",
+            "plot_bgcolor": "rgba(255,255,255,0)",
+            "font": {"family": "Inter, Segoe UI, Arial, sans-serif", "color": "#14263f", "size": 13},
+            "title": {"font": {"size": 18, "color": "#14263f"}},
+            "colorway": ["#2457d6", "#19a4a1", "#d08a1f", "#1f8f67", "#d84b62", "#6b7a90"],
+            "margin": {"l": 24, "r": 24, "t": 48, "b": 24},
+            "legend": {
+                "orientation": "h",
+                "yanchor": "bottom",
+                "y": 1.02,
+                "xanchor": "left",
+                "x": 0,
+                "bgcolor": "rgba(255,255,255,0.84)",
+                "bordercolor": "rgba(21, 51, 89, 0.10)",
+                "borderwidth": 1,
+            },
+            "xaxis": {
+                "showgrid": True,
+                "gridcolor": "rgba(21, 51, 89, 0.08)",
+                "zeroline": False,
+                "linecolor": "rgba(21, 51, 89, 0.14)",
+            },
+            "yaxis": {
+                "showgrid": True,
+                "gridcolor": "rgba(21, 51, 89, 0.08)",
+                "zeroline": False,
+                "linecolor": "rgba(21, 51, 89, 0.14)",
+            },
+        }
+        pio.templates["vertexone"] = {
+            "layout": base_layout,
+            "data": {
+                "bar": [{"marker": {"line": {"width": 0}}, "hoverlabel": {"namelength": -1}}],
+                "pie": [{"hole": 0.48, "textinfo": "percent+label", "sort": False}],
+                "sunburst": [{"branchvalues": "total", "insidetextorientation": "radial"}],
+                "scatter": [{"line": {"width": 3}, "marker": {"size": 8}}],
+            },
+        }
+
+    pio.templates.default = "vertexone"
+    print("[PMO] Plotly enterprise theme loaded.")
+
+
 def _wire_workspace_overrides() -> None:
     try:
         scan_v3 = importlib.import_module("scan_workspace_v3")
@@ -574,6 +656,7 @@ def _wire_workspace_overrides() -> None:
 
 
 def _render_mobile_workspace_switcher() -> None:
+    st.markdown('<div class="vx-mobile-shell">', unsafe_allow_html=True)
     st.caption("Workspace")
     options = ["🚀 Scan Project", "📅 Create RoadMap", "🧾 Asset Management", "📈 Reports"]
     selected = None
@@ -608,6 +691,7 @@ def _render_mobile_workspace_switcher() -> None:
 
     if selected:
         st.session_state["_pmo_actual_engine"] = selected
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _inject_kanban_breakpoint_bridge() -> None:
@@ -720,6 +804,7 @@ if str(APP_DIR) not in sys.path:
 _patch_streamlit_runtime()
 _patch_pandas_read_json()
 _patch_fpdf()
+_patch_plotly_theme()
 _wire_workspace_overrides()
 st.markdown(ENTERPRISE_THEME, unsafe_allow_html=True)
 _render_mobile_workspace_switcher()
