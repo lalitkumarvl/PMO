@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import importlib
 import io
+import json
 import os
-import re
 import runpy
 import sys
+import types
 from pathlib import Path
 
 import streamlit as st
@@ -14,17 +16,13 @@ ENTERPRISE_THEME = """
 <style>
   :root {
     --vx-bg: #eef4fb;
-    --vx-surface: rgba(255, 255, 255, 0.90);
-    --vx-surface-strong: #ffffff;
+    --vx-surface: rgba(255, 255, 255, 0.92);
     --vx-border: rgba(21, 51, 89, 0.10);
-    --vx-shadow: 0 16px 40px rgba(20, 46, 82, 0.10);
+    --vx-shadow: 0 16px 36px rgba(20, 46, 82, 0.10);
     --vx-text: #14263f;
     --vx-text-soft: #5d6b82;
     --vx-primary: #2457d6;
-    --vx-primary-2: #19a4a1;
-    --vx-danger: #d84b62;
-    --vx-warning: #d08a1f;
-    --vx-success: #1f8f67;
+    --vx-secondary: #19a4a1;
     --vx-radius: 18px;
   }
 
@@ -36,31 +34,40 @@ ENTERPRISE_THEME = """
   }
 
   [data-testid="stHeader"] {
-    background: rgba(244, 248, 253, 0.72);
+    background: rgba(244, 248, 253, 0.70);
     backdrop-filter: blur(10px);
   }
 
   .block-container {
-    max-width: 1480px;
-    margin: 0 auto;
-    padding-top: 1rem;
-    padding-bottom: 2rem;
+    max-width: 1440px;
+    padding-top: 0.95rem;
+    padding-bottom: 1.75rem;
     padding-left: 1rem;
     padding-right: 1rem;
   }
 
+  h1, h2, h3, h4 {
+    color: var(--vx-text);
+    line-height: 1.12;
+    word-break: normal !important;
+    overflow-wrap: break-word;
+  }
+
+  h1 { font-size: clamp(1.7rem, 3vw, 2.6rem) !important; }
+  h2 { font-size: clamp(1.35rem, 2.2vw, 2rem) !important; }
+  h3 { font-size: clamp(1.15rem, 1.8vw, 1.55rem) !important; }
+
+  p, li, label, span, div {
+    overflow-wrap: break-word;
+  }
+
   [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #10203f 0%, #16335f 100%);
-    border-right: 1px solid rgba(255, 255, 255, 0.07);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   [data-testid="stSidebar"] * {
-    color: #f3f7ff;
-  }
-
-  [data-testid="stSidebar"] .stButton > button,
-  [data-testid="stSidebar"] div[data-testid="stDownloadButton"] > button {
-    width: 100%;
+    color: #f4f7ff;
   }
 
   [data-testid="stSidebar"] [data-testid="stFileUploader"],
@@ -68,46 +75,13 @@ ENTERPRISE_THEME = """
     display: none !important;
   }
 
-  .vx-hero {
-    background: linear-gradient(135deg, #10203f 0%, #2457d6 100%);
-    color: #ffffff;
-    border-radius: 22px;
-    padding: 1.2rem 1.3rem;
-    box-shadow: 0 18px 42px rgba(18, 41, 74, 0.18);
-    margin-bottom: 1rem;
-  }
-
-  .vx-hero__eyebrow {
-    font-size: 0.72rem;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    opacity: 0.78;
-    margin-bottom: 0.45rem;
-    font-weight: 700;
-  }
-
-  .vx-hero__title {
-    font-size: clamp(1.4rem, 2vw, 2rem);
-    line-height: 1.1;
-    font-weight: 800;
-    margin: 0;
-  }
-
-  .vx-hero__body {
-    margin-top: 0.55rem;
-    color: rgba(255, 255, 255, 0.88);
-    max-width: 72ch;
-    font-size: 0.97rem;
-    line-height: 1.55;
-  }
-
   .stButton > button,
   div[data-testid="stDownloadButton"] > button,
   button[kind="primary"],
   button[kind="secondary"] {
-    min-height: 2.9rem;
+    min-height: 2.85rem;
     border-radius: 14px;
-    border: 1px solid rgba(36, 87, 214, 0.10);
+    border: 1px solid rgba(36, 87, 214, 0.12);
     background: linear-gradient(135deg, #ffffff 0%, #f7fbff 100%);
     color: var(--vx-text);
     font-weight: 600;
@@ -128,7 +102,7 @@ ENTERPRISE_THEME = """
   div[data-testid="stDownloadButton"] > button:focus,
   button[kind="primary"]:focus,
   button[kind="secondary"]:focus {
-    outline: 3px solid rgba(36, 87, 214, 0.18);
+    outline: 3px solid rgba(36, 87, 214, 0.20);
     outline-offset: 2px;
   }
 
@@ -141,17 +115,17 @@ ENTERPRISE_THEME = """
   [data-baseweb="tab-list"] {
     gap: 0.5rem;
     flex-wrap: wrap;
-    padding-bottom: 0.65rem;
+    padding-bottom: 0.6rem;
     border-bottom: 1px solid var(--vx-border);
   }
 
   button[data-baseweb="tab"] {
-    min-height: 2.8rem;
-    padding: 0.7rem 1rem;
+    min-height: 2.75rem;
+    padding: 0.68rem 1rem;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.66);
+    background: rgba(255, 255, 255, 0.72);
     border: 1px solid rgba(36, 87, 214, 0.08);
-    box-shadow: 0 8px 20px rgba(20, 46, 82, 0.05);
+    box-shadow: 0 8px 18px rgba(20, 46, 82, 0.05);
   }
 
   button[data-baseweb="tab"][aria-selected="true"] {
@@ -165,7 +139,7 @@ ENTERPRISE_THEME = """
     border: 1px solid var(--vx-border);
     border-radius: var(--vx-radius);
     box-shadow: var(--vx-shadow);
-    padding: 1rem 1.1rem;
+    padding: 1rem 1.05rem;
   }
 
   [data-testid="stDataFrame"],
@@ -182,47 +156,28 @@ ENTERPRISE_THEME = """
   [data-testid="stDataEditor"] > div,
   iframe[title="streamlit_custom_component"],
   iframe[title="components.html"] {
-    max-width: 100% !important;
     width: 100% !important;
+    max-width: 100% !important;
   }
 
-  [data-testid="stHorizontalBlock"] {
-    gap: 1rem;
-    flex-wrap: wrap !important;
-    align-items: stretch !important;
-  }
-
-  [data-testid="column"] {
-    min-width: min(100%, 360px) !important;
-    flex: 1 1 360px !important;
-  }
-
-  .element-container,
-  .stMarkdown,
-  .stTable,
-  .stDataFrame,
-  .stDataEditor {
+  .stButton,
+  div[data-testid="stDownloadButton"] {
     max-width: 100%;
   }
 
-  @media (max-width: 1280px) {
+  @media (max-width: 1100px) {
     .block-container {
-      padding-left: 0.85rem;
-      padding-right: 0.85rem;
+      padding-left: 0.8rem;
+      padding-right: 0.8rem;
     }
   }
 
-  @media (max-width: 960px) {
+  @media (max-width: 820px) {
     .block-container {
-      padding-top: 0.85rem;
+      padding-top: 0.75rem;
       padding-left: 0.7rem;
       padding-right: 0.7rem;
-      padding-bottom: 1.25rem;
-    }
-
-    [data-testid="column"] {
-      min-width: 100% !important;
-      flex-basis: 100% !important;
+      padding-bottom: 1rem;
     }
 
     .stButton > button,
@@ -231,7 +186,6 @@ ENTERPRISE_THEME = """
     button[kind="secondary"] {
       width: 100%;
       min-height: 3rem;
-      font-size: 0.98rem;
     }
 
     button[data-baseweb="tab"] {
@@ -258,32 +212,10 @@ BUTTON_ICON_MAP = {
     "Clear": "✕ Clear",
     "Apply": "✓ Apply",
     "Apply Mapping": "✓ Apply Mapping",
+    "Restore Selected": "⟲ Restore Selected",
     "Browse files": "📂 Browse files",
     "Browse Files": "📂 Browse Files",
-    "Restore Selected": "⟲ Restore Selected",
 }
-
-SCAN_HERO_HTML = """
-<section class="vx-hero" aria-label="Project scan summary">
-  <div class="vx-hero__eyebrow">Project Intelligence</div>
-  <h1 class="vx-hero__title">Scan delivery data with less friction</h1>
-  <div class="vx-hero__body">
-    Upload a workbook once, review health, dependencies, resource pressure, and move
-    directly into Kanban and management analysis without oversized intro panels.
-  </div>
-</section>
-"""
-
-ROADMAP_HERO_HTML = """
-<section class="vx-hero" aria-label="Roadmap studio summary">
-  <div class="vx-hero__eyebrow">Roadmap Studio</div>
-  <h1 class="vx-hero__title">Plan milestones, teams, and risks in one workspace</h1>
-  <div class="vx-hero__body">
-    Capture project inputs, refine planning assumptions, and validate delivery feasibility
-    through compact tabs instead of a long scrolling page.
-  </div>
-</section>
-"""
 
 
 def _decorate_label(label):
@@ -310,17 +242,13 @@ def _sanitize_pdf_text(value) -> str:
     text = value if isinstance(value, str) else str(value)
     text = text.replace("\r", " ").replace("\t", " ")
     text = text.encode("latin-1", "replace").decode("latin-1")
-    text = re.sub(r"[ ]{2,}", " ", text)
-    lines = []
-    for line in text.splitlines() or [""]:
-        words = []
-        for word in line.split(" "):
-            if len(word) > 32:
-                words.extend(word[i:i + 32] for i in range(0, len(word), 32))
-            else:
-                words.append(word)
-        lines.append(" ".join(words).strip())
-    return "\n".join(line for line in lines if line).strip() or "-"
+    words = []
+    for chunk in text.split():
+        if len(chunk) > 28:
+            words.extend(chunk[i:i + 28] for i in range(0, len(chunk), 28))
+        else:
+            words.append(chunk)
+    return " ".join(words) or "-"
 
 
 def _pdf_bytes(pdf):
@@ -330,29 +258,9 @@ def _pdf_bytes(pdf):
     return bytes(raw)
 
 
-def _write_pdf_section(pdf, heading: str, value) -> None:
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.multi_cell(0, 8, _sanitize_pdf_text(heading))
-    pdf.set_font("Helvetica", size=10)
-
-    if hasattr(value, "to_string"):
-        try:
-            body = value.to_string(index=False)
-        except Exception:
-            body = str(value)
-    else:
-        body = str(value)
-
-    body = _sanitize_pdf_text(body)
-    for paragraph in body.split("\n"):
-        pdf.multi_cell(0, 5, paragraph or "-")
-    pdf.ln(1)
-
-
-def _safe_build_roadmap_pdf(*args, **kwargs):
+def _safe_build_pdf(title: str, *sections, **named_sections):
     from fpdf import FPDF
 
-    title = kwargs.get("project_name") or (args[0] if args else "Enterprise Project Roadmap")
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=12)
     pdf.add_page()
@@ -360,37 +268,122 @@ def _safe_build_roadmap_pdf(*args, **kwargs):
     pdf.multi_cell(0, 10, _sanitize_pdf_text(title))
     pdf.ln(2)
 
-    for index, value in enumerate(args[1:], start=1):
-        _write_pdf_section(pdf, f"Section {index}", value)
+    pdf.set_font("Helvetica", size=10)
+    for index, section in enumerate(sections, start=1):
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.multi_cell(0, 7, f"Section {index}")
+        pdf.set_font("Helvetica", size=10)
+        body = section.to_string(index=False) if hasattr(section, "to_string") else str(section)
+        for line in str(body).splitlines() or ["-"]:
+            pdf.multi_cell(0, 5, _sanitize_pdf_text(line))
+        pdf.ln(1)
 
-    for key, value in kwargs.items():
-        if key == "project_name":
-            continue
-        _write_pdf_section(pdf, key.replace("_", " ").title(), value)
+    for key, value in named_sections.items():
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.multi_cell(0, 7, _sanitize_pdf_text(key.replace("_", " ").title()))
+        pdf.set_font("Helvetica", size=10)
+        body = value.to_string(index=False) if hasattr(value, "to_string") else str(value)
+        for line in str(body).splitlines() or ["-"]:
+            pdf.multi_cell(0, 5, _sanitize_pdf_text(line))
+        pdf.ln(1)
 
     return _pdf_bytes(pdf)
 
 
 def _safe_build_scan_pdf_report(*args, **kwargs):
-    from fpdf import FPDF
+    title = kwargs.pop("title", None) or (args[0] if args else "Project Scan Review")
+    remaining_args = args[1:] if args else ()
+    return _safe_build_pdf(title, *remaining_args, **kwargs)
 
-    title = kwargs.get("title") or (args[0] if args else "Project Scan Review")
-    pdf = FPDF()
-    pdf.set_auto_page_break(auto=True, margin=12)
-    pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.multi_cell(0, 10, _sanitize_pdf_text(title))
-    pdf.ln(2)
 
-    for index, value in enumerate(args[1:], start=1):
-        _write_pdf_section(pdf, f"Analysis {index}", value)
+def _safe_build_roadmap_pdf(*args, **kwargs):
+    title = kwargs.pop("project_name", None) or (args[0] if args else "Enterprise Project Roadmap")
+    remaining_args = args[1:] if args else ()
+    return _safe_build_pdf(title, *remaining_args, **kwargs)
 
-    for key, value in kwargs.items():
-        if key == "title":
-            continue
-        _write_pdf_section(pdf, key.replace("_", " ").title(), value)
 
-    return _pdf_bytes(pdf)
+def _patch_fpdf() -> None:
+    try:
+        from fpdf import FPDF
+        from fpdf.errors import FPDFException
+    except Exception as exc:
+        print(f"[PMO] FPDF patch skipped: {exc}")
+        return
+
+    if getattr(FPDF, "_pmo_multi_cell_patched", False):
+        return
+
+    original_multi_cell = FPDF.multi_cell
+
+    def safe_multi_cell(self, w, h=None, text="", *args, **kwargs):
+        safe_text = _sanitize_pdf_text(text)
+        try:
+            return original_multi_cell(self, w, h, safe_text, *args, **kwargs)
+        except FPDFException as exc:
+            if "Not enough horizontal space" not in str(exc):
+                raise
+            try:
+                self.set_x(self.l_margin)
+            except Exception:
+                pass
+            retry_w = w if isinstance(w, (int, float)) and w > 5 else max(getattr(self, "epw", 170), 50)
+            retry_h = h if h is not None else 5
+            return original_multi_cell(self, retry_w, retry_h, safe_text, *args, **kwargs)
+
+    FPDF.multi_cell = safe_multi_cell
+    FPDF._pmo_multi_cell_patched = True
+    print("[PMO] FPDF compatibility patch loaded.")
+
+
+def _patch_pandas_read_json() -> None:
+    try:
+        import pandas as pd
+    except Exception as exc:
+        print(f"[PMO] Pandas compatibility patch skipped: {exc}")
+        return
+
+    if getattr(pd, "_pmo_read_json_patched", False):
+        return
+
+    original_read_json = pd.read_json
+
+    def safe_read_json(path_or_buf, *args, **kwargs):
+        if isinstance(path_or_buf, str):
+            candidate = path_or_buf.strip()
+            looks_like_json = candidate.startswith("{") or candidate.startswith("[")
+
+            if looks_like_json and not os.path.exists(candidate):
+                try:
+                    return original_read_json(io.StringIO(candidate), *args, **kwargs)
+                except Exception:
+                    try:
+                        loaded = json.loads(candidate)
+                        if isinstance(loaded, dict) and "data" in loaded:
+                            return pd.DataFrame(loaded["data"])
+                        if isinstance(loaded, list):
+                            return pd.DataFrame(loaded)
+                    except Exception:
+                        pass
+
+            try:
+                return original_read_json(path_or_buf, *args, **kwargs)
+            except (FileNotFoundError, OSError, ValueError):
+                if looks_like_json:
+                    try:
+                        return original_read_json(io.StringIO(candidate), *args, **kwargs)
+                    except Exception:
+                        loaded = json.loads(candidate)
+                        if isinstance(loaded, dict) and "data" in loaded:
+                            return pd.DataFrame(loaded["data"])
+                        if isinstance(loaded, list):
+                            return pd.DataFrame(loaded)
+                raise
+
+        return original_read_json(path_or_buf, *args, **kwargs)
+
+    pd.read_json = safe_read_json
+    pd._pmo_read_json_patched = True
+    print("[PMO] Pandas JSON compatibility patch loaded.")
 
 
 def _patch_streamlit_runtime() -> None:
@@ -404,17 +397,16 @@ def _patch_streamlit_runtime() -> None:
     original_download_button = st.download_button
     original_dataframe = st.dataframe
     original_data_editor = st.data_editor
-    original_markdown = st.markdown
+    original_radio = st.radio
     original_dg_button = DeltaGenerator.button
     original_dg_download_button = DeltaGenerator.download_button
     original_dg_dataframe = DeltaGenerator.dataframe
     original_dg_data_editor = DeltaGenerator.data_editor
-    original_dg_markdown = DeltaGenerator.markdown
 
     def patched_set_page_config(*args, **kwargs):
         patched_kwargs = dict(kwargs)
         patched_kwargs.setdefault("layout", "wide")
-        patched_kwargs.setdefault("initial_sidebar_state", "collapsed")
+        patched_kwargs.setdefault("initial_sidebar_state", "expanded")
         return original_set_page_config(*args, **patched_kwargs)
 
     def patched_button(label, *args, **kwargs):
@@ -431,21 +423,17 @@ def _patch_streamlit_runtime() -> None:
     def patched_data_editor(data=None, *args, **kwargs):
         return original_data_editor(data, *args, **_normalize_width_kwargs(kwargs, default_stretch=True))
 
-    def _replacement_markdown(body):
-        if not isinstance(body, str):
-            return body, False
-        if "Portfolio Timeline Scanner" in body or "Project Scan & Analysis" in body:
-            return SCAN_HERO_HTML, True
-        if "Project Roadmap Studio" in body:
-            return ROADMAP_HERO_HTML, True
-        return body, False
-
-    def patched_markdown(body, *args, **kwargs):
-        replacement, is_html = _replacement_markdown(body)
-        patched_kwargs = dict(kwargs)
-        if is_html:
-            patched_kwargs["unsafe_allow_html"] = True
-        return original_markdown(replacement, *args, **patched_kwargs)
+    def patched_radio(label, options, *args, **kwargs):
+        normalized_options = list(options) if isinstance(options, (list, tuple)) else options
+        if isinstance(label, str) and "Select Engine" in label and isinstance(normalized_options, list):
+            if "🚀 Scan Project" in normalized_options and "📅 Create RoadMap" in normalized_options:
+                display_options = ["🚀 Scan Project", "📅 Create RoadMap", "🧾 Asset Management", "📈 Reports"]
+                selected = original_radio(label, display_options, *args, **kwargs)
+                st.session_state["_pmo_actual_engine"] = selected
+                if selected in {"🧾 Asset Management", "📈 Reports"}:
+                    return "🚀 Scan Project"
+                return selected
+        return original_radio(label, options, *args, **kwargs)
 
     def patched_dg_button(self, label, *args, **kwargs):
         if isinstance(label, str) and label.strip() in HIDDEN_BUTTONS:
@@ -461,95 +449,58 @@ def _patch_streamlit_runtime() -> None:
     def patched_dg_data_editor(self, data=None, *args, **kwargs):
         return original_dg_data_editor(self, data, *args, **_normalize_width_kwargs(kwargs, default_stretch=True))
 
-    def patched_dg_markdown(self, body, *args, **kwargs):
-        replacement, is_html = _replacement_markdown(body)
-        patched_kwargs = dict(kwargs)
-        if is_html:
-            patched_kwargs["unsafe_allow_html"] = True
-        return original_dg_markdown(self, replacement, *args, **patched_kwargs)
-
     st.set_page_config = patched_set_page_config
     st.button = patched_button
     st.download_button = patched_download_button
     st.dataframe = patched_dataframe
     st.data_editor = patched_data_editor
-    st.markdown = patched_markdown
+    st.radio = patched_radio
     DeltaGenerator.button = patched_dg_button
     DeltaGenerator.download_button = patched_dg_download_button
     DeltaGenerator.dataframe = patched_dg_dataframe
     DeltaGenerator.data_editor = patched_dg_data_editor
-    DeltaGenerator.markdown = patched_dg_markdown
     st._vertexone_enterprise_runtime_patched = True
     print("[PMO] Enterprise responsive theme patch loaded.")
 
 
-def _patch_pandas_read_json() -> None:
+def _wire_workspace_overrides() -> None:
     try:
-        import pandas as pd
-    except Exception as exc:  # pragma: no cover
-        print(f"[PMO] Pandas compatibility patch skipped: {exc}")
+        scan_v3 = importlib.import_module("scan_workspace_v3")
+        roadmap_v3 = importlib.import_module("roadmap_workspace_v3")
+        asset_v2 = importlib.import_module("asset_management_workspace_v2")
+        reports_v1 = importlib.import_module("reports_workspace")
+        original_scan = importlib.import_module("project_scan_workspace")
+        original_roadmap = importlib.import_module("roadmap_workspace")
+    except Exception as exc:
+        print(f"[PMO] Workspace override patch skipped: {exc}")
         return
 
-    if getattr(pd, "_pmo_read_json_patched", False):
-        return
+    def routed_scan_workspace():
+        actual_engine = st.session_state.get("_pmo_actual_engine", "🚀 Scan Project")
+        if actual_engine == "🧾 Asset Management":
+            return asset_v2.render_asset_management_workspace_v2()
+        if actual_engine == "📈 Reports":
+            return reports_v1.render_reports_workspace()
+        return scan_v3.render_scan_workspace_v3()
 
-    original_read_json = pd.read_json
+    original_scan.render_project_scan_workspace = routed_scan_workspace
+    original_scan.build_scan_pdf_report = _safe_build_scan_pdf_report
+    original_roadmap.render_roadmap_workspace = roadmap_v3.render_roadmap_workspace_v3
+    original_roadmap.build_roadmap_pdf = _safe_build_roadmap_pdf
 
-    def safe_read_json(path_or_buf, *args, **kwargs):
-        if isinstance(path_or_buf, str):
-            candidate = path_or_buf.strip()
-            looks_like_json = candidate.startswith("{") or candidate.startswith("[")
+    scan_proxy = types.ModuleType("project_scan_workspace")
+    scan_proxy.__dict__.update(original_scan.__dict__)
+    scan_proxy.render_project_scan_workspace = routed_scan_workspace
+    scan_proxy.build_scan_pdf_report = _safe_build_scan_pdf_report
 
-            if looks_like_json and not os.path.exists(candidate):
-                return original_read_json(io.StringIO(candidate), *args, **kwargs)
+    roadmap_proxy = types.ModuleType("roadmap_workspace")
+    roadmap_proxy.__dict__.update(original_roadmap.__dict__)
+    roadmap_proxy.render_roadmap_workspace = roadmap_v3.render_roadmap_workspace_v3
+    roadmap_proxy.build_roadmap_pdf = _safe_build_roadmap_pdf
 
-            try:
-                return original_read_json(path_or_buf, *args, **kwargs)
-            except (FileNotFoundError, OSError, ValueError):
-                if looks_like_json:
-                    return original_read_json(io.StringIO(candidate), *args, **kwargs)
-                raise
-
-        return original_read_json(path_or_buf, *args, **kwargs)
-
-    pd.read_json = safe_read_json
-    pd._pmo_read_json_patched = True
-    print("[PMO] Pandas JSON compatibility patch loaded.")
-
-
-def _apply_workspace_patches() -> None:
-    try:
-        import project_scan_workspace
-        import roadmap_workspace
-    except Exception as exc:
-        print(f"[PMO] Base workspace patch skipped: {exc}")
-        return
-
-    try:
-        from scan_workspace_v3 import render_scan_workspace_v3
-
-        project_scan_workspace.render_project_scan_workspace = render_scan_workspace_v3
-    except Exception as exc:
-        print(f"[PMO] Scan workspace v3 patch skipped: {exc}")
-
-    try:
-        from roadmap_workspace_v3 import render_roadmap_workspace_v3
-
-        roadmap_workspace.render_roadmap_workspace = render_roadmap_workspace_v3
-    except Exception as exc:
-        print(f"[PMO] Roadmap workspace v3 patch skipped: {exc}")
-
-    try:
-        project_scan_workspace.build_scan_pdf_report = _safe_build_scan_pdf_report
-    except Exception:
-        pass
-
-    try:
-        roadmap_workspace.build_roadmap_pdf = _safe_build_roadmap_pdf
-    except Exception:
-        pass
-
-    print("[PMO] Direct workspace compatibility patches loaded.")
+    sys.modules["project_scan_workspace"] = scan_proxy
+    sys.modules["roadmap_workspace"] = roadmap_proxy
+    print("[PMO] Workspace routing patch loaded.")
 
 
 def _resolve_app_dir() -> Path:
@@ -569,17 +520,8 @@ if str(APP_DIR) not in sys.path:
 
 _patch_streamlit_runtime()
 _patch_pandas_read_json()
-_apply_workspace_patches()
+_patch_fpdf()
+_wire_workspace_overrides()
 st.markdown(ENTERPRISE_THEME, unsafe_allow_html=True)
-
-for patch_module_name in ("pmo_runtime_patch_v2", "pmo_runtime_patch"):
-    try:
-        patch_module = __import__(patch_module_name)
-        if hasattr(patch_module, "apply_runtime_patch"):
-            patch_module.apply_runtime_patch()
-            print(f"[PMO] Runtime patch loaded from {patch_module_name}.")
-            break
-    except Exception as exc:  # pragma: no cover
-        print(f"[PMO] Runtime patch {patch_module_name} skipped: {exc}")
 
 runpy.run_path(str(APP_FILE), run_name="__main__")
