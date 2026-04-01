@@ -17,6 +17,11 @@ try:
 except Exception:
     pio = None
 
+try:
+    from plotly.basedatatypes import BaseFigure
+except Exception:
+    BaseFigure = None
+
 
 ENTERPRISE_THEME = """
 <style>
@@ -474,11 +479,13 @@ def _patch_streamlit_runtime() -> None:
     original_download_button = st.download_button
     original_dataframe = st.dataframe
     original_data_editor = st.data_editor
+    original_plotly_chart = st.plotly_chart
     original_radio = st.radio
     original_dg_button = DeltaGenerator.button
     original_dg_download_button = DeltaGenerator.download_button
     original_dg_dataframe = DeltaGenerator.dataframe
     original_dg_data_editor = DeltaGenerator.data_editor
+    original_dg_plotly_chart = DeltaGenerator.plotly_chart
 
     def patched_set_page_config(*args, **kwargs):
         patched_kwargs = dict(kwargs)
@@ -499,6 +506,10 @@ def _patch_streamlit_runtime() -> None:
 
     def patched_data_editor(data=None, *args, **kwargs):
         return original_data_editor(data, *args, **_normalize_width_kwargs(kwargs, default_stretch=True))
+
+    def patched_plotly_chart(figure_or_data=None, *args, **kwargs):
+        figure_or_data = _normalize_plotly_figure(figure_or_data)
+        return original_plotly_chart(figure_or_data, *args, **_normalize_width_kwargs(kwargs, default_stretch=True))
 
     def patched_radio(label, options, *args, **kwargs):
         normalized_options = list(options) if isinstance(options, (list, tuple)) else options
@@ -526,16 +537,22 @@ def _patch_streamlit_runtime() -> None:
     def patched_dg_data_editor(self, data=None, *args, **kwargs):
         return original_dg_data_editor(self, data, *args, **_normalize_width_kwargs(kwargs, default_stretch=True))
 
+    def patched_dg_plotly_chart(self, figure_or_data=None, *args, **kwargs):
+        figure_or_data = _normalize_plotly_figure(figure_or_data)
+        return original_dg_plotly_chart(self, figure_or_data, *args, **_normalize_width_kwargs(kwargs, default_stretch=True))
+
     st.set_page_config = patched_set_page_config
     st.button = patched_button
     st.download_button = patched_download_button
     st.dataframe = patched_dataframe
     st.data_editor = patched_data_editor
+    st.plotly_chart = patched_plotly_chart
     st.radio = patched_radio
     DeltaGenerator.button = patched_dg_button
     DeltaGenerator.download_button = patched_dg_download_button
     DeltaGenerator.dataframe = patched_dg_dataframe
     DeltaGenerator.data_editor = patched_dg_data_editor
+    DeltaGenerator.plotly_chart = patched_dg_plotly_chart
     st._vertexone_enterprise_runtime_patched = True
     print("[PMO] Enterprise responsive theme patch loaded.")
 
@@ -600,6 +617,65 @@ def _patch_plotly_theme() -> None:
 
     pio.templates.default = "vertexone"
     print("[PMO] Plotly enterprise theme loaded.")
+
+
+def _normalize_plotly_figure(fig):
+    if BaseFigure is None or not isinstance(fig, BaseFigure):
+        return fig
+
+    title = getattr(fig.layout, "title", None)
+    title_text = ""
+    if title is not None:
+        title_text = getattr(title, "text", "") or ""
+
+    legend_items = 0
+    try:
+        legend_items = sum(
+            1
+            for trace in fig.data
+            if getattr(trace, "showlegend", True) and getattr(trace, "name", None)
+        )
+    except Exception:
+        legend_items = 0
+
+    fig.update_layout(
+        title=dict(
+            text=title_text,
+            x=0,
+            xanchor="left",
+            y=0.98,
+            yanchor="top",
+            pad=dict(b=28),
+            font=dict(size=18, color="#14263f"),
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.18,
+            xanchor="left",
+            x=0,
+            traceorder="normal",
+            itemwidth=40,
+            font=dict(size=11),
+            bgcolor="rgba(255,255,255,0.84)",
+            bordercolor="rgba(21, 51, 89, 0.10)",
+            borderwidth=1,
+        ),
+        margin=dict(
+            l=24,
+            r=24,
+            t=72 + (24 if title_text else 0),
+            b=72 + (22 if legend_items else 0),
+        ),
+    )
+
+    try:
+        fig.update_xaxes(automargin=True)
+        fig.update_yaxes(automargin=True)
+    except Exception:
+        pass
+
+    return fig
 
 
 def _wire_workspace_overrides() -> None:
