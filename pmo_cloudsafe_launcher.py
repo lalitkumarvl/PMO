@@ -31,6 +31,13 @@ ENTERPRISE_THEME = """
       radial-gradient(circle at top right, rgba(36, 87, 214, 0.10), transparent 32%),
       linear-gradient(180deg, #f4f8fd 0%, #edf3fb 100%);
     color: var(--vx-text);
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
   }
 
   [data-testid="stHeader"] {
@@ -49,8 +56,9 @@ ENTERPRISE_THEME = """
   h1, h2, h3, h4 {
     color: var(--vx-text);
     line-height: 1.12;
-    word-break: normal !important;
+    word-break: keep-all !important;
     overflow-wrap: break-word;
+    hyphens: none;
   }
 
   h1 { font-size: clamp(1.7rem, 3vw, 2.6rem) !important; }
@@ -59,11 +67,13 @@ ENTERPRISE_THEME = """
 
   p, li, label, span, div {
     overflow-wrap: break-word;
+    word-break: normal;
   }
 
   [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #10203f 0%, #16335f 100%);
     border-right: 1px solid rgba(255, 255, 255, 0.08);
+    overflow-x: hidden;
   }
 
   [data-testid="stSidebar"] * {
@@ -160,6 +170,20 @@ ENTERPRISE_THEME = """
     max-width: 100% !important;
   }
 
+  img, svg, canvas {
+    max-width: 100%;
+    height: auto;
+  }
+
+  [data-testid="stTabs"] {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  [data-testid="stHorizontalBlock"] {
+    align-items: stretch;
+  }
+
   .stButton,
   div[data-testid="stDownloadButton"] {
     max-width: 100%;
@@ -180,6 +204,15 @@ ENTERPRISE_THEME = """
       padding-bottom: 1rem;
     }
 
+    [data-testid="stSidebar"] {
+      min-width: min(84vw, 320px) !important;
+      max-width: min(84vw, 320px) !important;
+    }
+
+    h1 { font-size: clamp(1.45rem, 7vw, 1.9rem) !important; }
+    h2 { font-size: clamp(1.2rem, 5.4vw, 1.55rem) !important; }
+    h3 { font-size: clamp(1.05rem, 4.4vw, 1.25rem) !important; }
+
     .stButton > button,
     div[data-testid="stDownloadButton"] > button,
     button[kind="primary"],
@@ -191,6 +224,17 @@ ENTERPRISE_THEME = """
     button[data-baseweb="tab"] {
       width: 100%;
       justify-content: center;
+    }
+
+    [data-testid="stHorizontalBlock"] {
+      flex-direction: column !important;
+      gap: 0.75rem !important;
+    }
+
+    [data-testid="column"] {
+      width: 100% !important;
+      flex: 1 1 100% !important;
+      min-width: 100% !important;
     }
   }
 </style>
@@ -406,7 +450,7 @@ def _patch_streamlit_runtime() -> None:
     def patched_set_page_config(*args, **kwargs):
         patched_kwargs = dict(kwargs)
         patched_kwargs.setdefault("layout", "wide")
-        patched_kwargs.setdefault("initial_sidebar_state", "expanded")
+        patched_kwargs.setdefault("initial_sidebar_state", "collapsed")
         return original_set_page_config(*args, **patched_kwargs)
 
     def patched_button(label, *args, **kwargs):
