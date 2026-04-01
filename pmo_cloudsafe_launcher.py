@@ -80,12 +80,28 @@ ENTERPRISE_THEME = """
     background: linear-gradient(180deg, #10203f 0%, #16335f 100%);
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     overflow-x: hidden;
-    min-width: 240px !important;
-    max-width: 240px !important;
+    min-width: 280px !important;
+    max-width: 280px !important;
   }
 
   [data-testid="stSidebar"] * {
     color: #f4f7ff;
+  }
+
+  [data-testid="stSidebar"] [role="radiogroup"] label,
+  [data-testid="stSidebar"] [data-baseweb="radio"] {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  [data-testid="stSidebar"] [role="radiogroup"] p,
+  [data-testid="stSidebar"] [data-baseweb="radio"] p,
+  [data-testid="stSidebar"] label p {
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
+    font-size: 0.98rem !important;
+    line-height: 1.2 !important;
   }
 
   [data-testid="stSidebar"] [data-testid="stFileUploader"],
@@ -208,8 +224,8 @@ ENTERPRISE_THEME = """
     }
 
     [data-testid="stSidebar"] {
-      min-width: 220px !important;
-      max-width: 220px !important;
+      min-width: 260px !important;
+      max-width: 260px !important;
     }
   }
 
@@ -539,15 +555,15 @@ def _patch_plotly_theme() -> None:
                 "xanchor": "left",
                 "y": 0.98,
                 "yanchor": "top",
-                "pad": {"b": 28},
+                "pad": {"b": 40},
                 "automargin": True,
             },
             "colorway": ["#2457d6", "#19a4a1", "#d08a1f", "#1f8f67", "#d84b62", "#6b7a90"],
-            "margin": {"l": 24, "r": 24, "t": 92, "b": 44},
+            "margin": {"l": 24, "r": 24, "t": 112, "b": 44},
             "legend": {
                 "orientation": "h",
                 "yanchor": "bottom",
-                "y": 1.08,
+                "y": 1.14,
                 "xanchor": "left",
                 "x": 0,
                 "bgcolor": "rgba(255,255,255,0.84)",
