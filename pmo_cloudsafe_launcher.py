@@ -75,8 +75,8 @@ ENTERPRISE_THEME = """
     background: linear-gradient(180deg, #10203f 0%, #16335f 100%);
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     overflow-x: hidden;
-    min-width: 276px !important;
-    max-width: 276px !important;
+    min-width: 240px !important;
+    max-width: 240px !important;
   }
 
   [data-testid="stSidebar"] * {
@@ -192,6 +192,10 @@ ENTERPRISE_THEME = """
     max-width: 100%;
   }
 
+  .vx-mobile-shell {
+    display: none;
+  }
+
   @media (max-width: 1100px) {
     .block-container {
       padding-left: 0.8rem;
@@ -199,8 +203,8 @@ ENTERPRISE_THEME = """
     }
 
     [data-testid="stSidebar"] {
-      min-width: 252px !important;
-      max-width: 252px !important;
+      min-width: 220px !important;
+      max-width: 220px !important;
     }
   }
 
@@ -232,6 +236,20 @@ ENTERPRISE_THEME = """
     button[data-baseweb="tab"] {
       width: 100%;
       justify-content: center;
+    }
+
+    [data-testid="stSidebar"] {
+      display: none !important;
+    }
+
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapseButton"] {
+      display: none !important;
+    }
+
+    .vx-mobile-shell {
+      display: block;
+      margin-bottom: 0.9rem;
     }
 
     [data-testid="stHorizontalBlock"] {
@@ -555,6 +573,43 @@ def _wire_workspace_overrides() -> None:
     print("[PMO] Workspace routing patch loaded.")
 
 
+def _render_mobile_workspace_switcher() -> None:
+    st.caption("Workspace")
+    options = ["🚀 Scan Project", "📅 Create RoadMap", "🧾 Asset Management", "📈 Reports"]
+    selected = None
+
+    segmented_control = getattr(st, "segmented_control", None)
+    if callable(segmented_control):
+        try:
+            selected = segmented_control(
+                "Workspace",
+                options,
+                key="vx_workspace_switcher",
+                selection_mode="single",
+                default=st.session_state.get("_pmo_actual_engine", options[0]),
+                label_visibility="collapsed",
+            )
+        except TypeError:
+            selected = segmented_control(
+                "Workspace",
+                options,
+                key="vx_workspace_switcher",
+                label_visibility="collapsed",
+            )
+    else:
+        selected = st.radio(
+            "Workspace",
+            options,
+            key="vx_workspace_switcher",
+            horizontal=True,
+            index=options.index(st.session_state.get("_pmo_actual_engine", options[0])),
+            label_visibility="collapsed",
+        )
+
+    if selected:
+        st.session_state["_pmo_actual_engine"] = selected
+
+
 def _inject_kanban_breakpoint_bridge() -> None:
     bridge = """
     <script>
@@ -588,7 +643,7 @@ def _inject_kanban_breakpoint_bridge() -> None:
             display: grid !important;
             grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
             align-items: start !important;
-            gap: 14px !important;
+            gap: 10px !important;
           }
           [class*="lane"],
           [class*="column"] {
@@ -606,7 +661,7 @@ def _inject_kanban_breakpoint_bridge() -> None:
             min-width: 0 !important;
             max-width: 100% !important;
           }
-          @media (max-width: 1180px) {
+          @media (max-width: 980px) {
             [class*="kanban"][class*="board"],
             [class*="board"][class*="grid"],
             [class*="lane"][class*="grid"],
@@ -667,6 +722,7 @@ _patch_pandas_read_json()
 _patch_fpdf()
 _wire_workspace_overrides()
 st.markdown(ENTERPRISE_THEME, unsafe_allow_html=True)
+_render_mobile_workspace_switcher()
 _inject_kanban_breakpoint_bridge()
 
 runpy.run_path(str(APP_FILE), run_name="__main__")
