@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VertexOne Kanban</title>
+  <style>
+    :root {
+      --bg: #eef4fb;
+      --text: #172a46;
+      --muted: #6a7690;
+      --border: rgba(17, 44, 74, 0.10);
+      --shadow: 0 14px 28px rgba(20, 46, 82, 0.08);
+      --todo: #6b7a90;
+      --inprogress: #2558d6;
+      --review: #d39020;
+      --done: #1c8a63;
+      --surface: rgba(255,255,255,0.94);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: transparent;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      align-items: start;
+    }
+    .lane {
+      background: rgba(255,255,255,0.72);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      min-height: 100%;
+    }
+    .lane-head {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 14px 16px 12px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+    .lane-head h4 {
+      margin: 0 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .lane-value {
+      font-size: 40px;
+      line-height: 1;
+      font-weight: 900;
+      margin-bottom: 6px;
+    }
+    .lane-count {
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .lane.todo .lane-head { box-shadow: inset 0 -5px 0 var(--todo); }
+    .lane.inprogress .lane-head { box-shadow: inset 0 -5px 0 var(--inprogress); }
+    .lane.review .lane-head { box-shadow: inset 0 -5px 0 var(--review); }
+    .lane.done .lane-head { box-shadow: inset 0 -5px 0 var(--done); }
+    .lane-body {
+      min-height: 240px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .lane-body.drag-over {
+      outline: 2px dashed rgba(37, 88, 214, 0.36);
+      outline-offset: 3px;
+      border-radius: 18px;
+    }
+    .card {
+      background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+      border: 1px solid var(--border);
+      border-left: 5px solid var(--inprogress);
+      border-radius: 18px;
+      box-shadow: 0 12px 24px rgba(20, 46, 82, 0.08);
+      margin-bottom: 12px;
+      padding: 14px 14px 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 140ms ease, box-shadow 140ms ease;
+    }
+    .card:hover { transform: translateY(-1px); box-shadow: 0 16px 28px rgba(20, 46, 82, 0.12); }
+    .card.dragging { opacity: 0.62; }
+    .card.selected { outline: 2px solid rgba(37, 88, 214, 0.36); }
+    .card.todo { border-left-color: var(--todo); }
+    .card.inprogress { border-left-color: var(--inprogress); }
+    .card.review { border-left-color: var(--review); }
+    .card.done { border-left-color: var(--done); }
+    .card.overdue { box-shadow: 0 0 0 2px rgba(217, 83, 104, 0.18), 0 12px 24px rgba(20, 46, 82, 0.08); }
+    .card.watch { box-shadow: 0 0 0 2px rgba(211, 144, 32, 0.15), 0 12px 24px rgba(20, 46, 82, 0.08); }
+    .task-id {
+      color: #73839c;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .task-title {
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+    .task-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 12px;
+    }
+    .meta {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .meta span {
+      color: #7f8ca2;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .meta strong {
+      color: #23324f;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .chip {
+      background: rgba(37, 88, 214, 0.08);
+      border: 1px solid rgba(37, 88, 214, 0.12);
+      color: #32527a;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .empty {
+      border: 1px dashed rgba(37, 88, 214, 0.18);
+      border-radius: 16px;
+      color: var(--muted);
+      text-align: center;
+      padding: 18px 12px;
+      font-size: 14px;
+    }
+    @media (max-width: 1100px) {
+      .board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .board { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    const Streamlit = {
+      RENDER_EVENT: "streamlit:render",
+      setComponentReady() {
+        window.parent.postMessage({ isStreamlitMessage: true, type: "streamlit:componentReady" }, "*");
+      },
+      setFrameHeight(height) {
+        window.parent.postMessage({ isStreamlitMessage: true, type: "streamlit:setFrameHeight", height }, "*");
+      },
+      setComponentValue(value) {
+        window.parent.postMessage({ isStreamlitMessage: true, type: "streamlit:setComponentValue", value }, "*");
+      }
+    };
+
+    const STATUS_ORDER = ["To Do", "In Progress", "Review", "Done"];
+    const STATUS_CLASS = {
+      "To Do": "todo",
+      "In Progress": "inprogress",
+      "Review": "review",
+      "Done": "done"
+    };
+
+    let state = { tasks: [], metrics: {}, laneHeight: 620, selectedTaskId: "", dragTaskId: "" };
+    let renderCount = 0;
+
+    function cloneTasks() {
+      return state.tasks.map((task) => ({ ...task }));
+    }
+
+    function taskRiskClass(task) {
+      const due = String(task.due_risk || "");
+      if (due.includes("Overdue")) return "overdue";
+      if (due.includes("Watch")) return "watch";
+      return "ontrack";
+    }
+
+    function emit(eventType, tasks, selectedTaskId) {
+      Streamlit.setComponentValue(JSON.stringify({
+        event_id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        event_type: eventType,
+        selected_task_id: selectedTaskId || "",
+        tasks: tasks.map((task, idx) => ({
+          task_id: task.task_id,
+          status: task.status,
+          lane_order: typeof task.lane_order === "number" ? task.lane_order : idx
+        }))
+      }));
+    }
+
+    function regroupLaneOrders(tasks) {
+      const laneBuckets = {};
+      STATUS_ORDER.forEach((status) => laneBuckets[status] = []);
+      tasks.forEach((task) => {
+        if (!laneBuckets[task.status]) laneBuckets[task.status] = [];
+        laneBuckets[task.status].push(task);
+      });
+      STATUS_ORDER.forEach((status) => {
+        laneBuckets[status].forEach((task, idx) => { task.lane_order = idx; });
+      });
+      return tasks;
+    }
+
+    function moveTask(taskId, newStatus) {
+      const nextTasks = cloneTasks();
+      const target = nextTasks.find((task) => task.task_id === taskId);
+      if (!target) return;
+      target.status = newStatus;
+      regroupLaneOrders(nextTasks);
+      state.tasks = nextTasks;
+      render();
+      emit("move", nextTasks, state.selectedTaskId);
+    }
+
+    function selectTask(taskId) {
+      state.selectedTaskId = taskId;
+      render();
+      emit("select", cloneTasks(), taskId);
+    }
+
+    function buildLane(status, metrics) {
+      const lane = document.createElement("section");
+      lane.className = `lane ${STATUS_CLASS[status] || "todo"}`;
+
+      const head = document.createElement("div");
+      head.className = "lane-head";
+      head.innerHTML = `
+        <h4>${status}</h4>
+        <div class="lane-value">${metrics?.pct ?? 0}%</div>
+        <div class="lane-count">${metrics?.count ?? 0} task(s)</div>
+      `;
+      lane.appendChild(head);
+
+      const body = document.createElement("div");
+      body.className = "lane-body";
+      body.style.maxHeight = `${state.laneHeight}px`;
+      body.dataset.status = status;
+      body.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        body.classList.add("drag-over");
+      });
+      body.addEventListener("dragleave", () => body.classList.remove("drag-over"));
+      body.addEventListener("drop", (event) => {
+        event.preventDefault();
+        body.classList.remove("drag-over");
+        if (state.dragTaskId) moveTask(state.dragTaskId, status);
+        state.dragTaskId = "";
+      });
+
+      const laneTasks = state.tasks
+        .filter((task) => task.status === status)
+        .sort((a, b) => (a.lane_order ?? 0) - (b.lane_order ?? 0));
+
+      if (!laneTasks.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "Drop a task here";
+        body.appendChild(empty);
+      } else {
+        laneTasks.forEach((task) => body.appendChild(buildCard(task)));
+      }
+
+      lane.appendChild(body);
+      return lane;
+    }
+
+    function buildCard(task) {
+      const card = document.createElement("article");
+      const dueClass = taskRiskClass(task);
+      card.className = `card ${STATUS_CLASS[task.status] || "todo"} ${dueClass}${state.selectedTaskId === task.task_id ? " selected" : ""}`;
+      card.draggable = true;
+      card.dataset.taskId = task.task_id;
+      card.addEventListener("click", () => selectTask(task.task_id));
+      card.addEventListener("dragstart", () => {
+        state.dragTaskId = task.task_id;
+        card.classList.add("dragging");
+      });
+      card.addEventListener("dragend", () => {
+        state.dragTaskId = "";
+        card.classList.remove("dragging");
+      });
+      card.innerHTML = `
+        <div class="task-id">${task.task_id}</div>
+        <div class="task-title">${task.task_name}</div>
+        <div class="task-grid">
+          <div class="meta"><span>Owner</span><strong>${task.owner}</strong></div>
+          <div class="meta"><span>Team</span><strong>${task.team}</strong></div>
+          <div class="meta"><span>Start</span><strong>${task.planned_start}</strong></div>
+          <div class="meta"><span>End</span><strong>${task.planned_end}</strong></div>
+        </div>
+        <div class="chips">
+          <span class="chip">${task.due_risk}</span>
+          <span class="chip">${task.percent_complete}% complete</span>
+        </div>
+      `;
+      return card;
+    }
+
+    function render() {
+      const app = document.getElementById("app");
+      app.innerHTML = "";
+      const board = document.createElement("div");
+      board.className = "board";
+      STATUS_ORDER.forEach((status) => board.appendChild(buildLane(status, state.metrics[status])));
+      app.appendChild(board);
+      requestAnimationFrame(() => {
+        Streamlit.setFrameHeight(document.body.scrollHeight + 8);
+      });
+    }
+
+    window.addEventListener("message", (event) => {
+      const message = event.data;
+      if (!message || message.type !== Streamlit.RENDER_EVENT) return;
+      const data = message.args?.data || {};
+      state.tasks = regroupLaneOrders((data.tasks || []).map((task, idx) => ({
+        ...task,
+        lane_order: typeof task.lane_order === "number" ? task.lane_order : idx
+      })));
+      state.metrics = data.metrics || {};
+      state.laneHeight = data.lane_body_height || 620;
+      renderCount += 1;
+      render();
+      if (renderCount === 1) {
+        Streamlit.setComponentReady();
+      }
+    });
+
+    Streamlit.setComponentReady();
+    Streamlit.setFrameHeight(600);
+  </script>
+</body>
+</html>
